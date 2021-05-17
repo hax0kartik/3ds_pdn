@@ -18,34 +18,37 @@ include $(DEVKITARM)/3ds_rules
 #---------------------------------------------------------------------------------
 TARGET		:=	$(notdir $(CURDIR))
 BUILD		:=	build
-SOURCES		:=	source
-DATA		:=	data
+SOURCES		:=	source source/3ds
+DATA		:=	
 INCLUDES	:=	include
-OUTPUTDIR   :=  0004013000002102
 
 #---------------------------------------------------------------------------------
 # options for code generation
 #---------------------------------------------------------------------------------
-ARCH	:=	-march=armv6k -mtune=mpcore -mfloat-abi=hard -mtp=soft
+ARCH	:=	-march=armv6k -mtune=mpcore -mfloat-abi=soft -mtp=soft
+DEFINES :=	-DARM11 -D_3DS
 
-CFLAGS	:=  -Wall -O0 -mword-relocations \
+CFLAGS	:=	-g -Wall -Wextra -Werror -Wno-unused-value -Os -flto -mword-relocations \
 			-fomit-frame-pointer -ffunction-sections -fdata-sections \
-			$(ARCH)
+			-fno-exceptions -fno-ident -fno-unwind-tables -fno-asynchronous-unwind-tables \
+			-fno-tree-loop-distribute-patterns \
+			$(ARCH) $(DEFINES)
 
-CFLAGS	+=	$(INCLUDE) -DARM11 -D_3DS
+CFLAGS	+=	$(INCLUDE)
 
-CXXFLAGS	:= $(CFLAGS) -fno-rtti -fno-exceptions -std=c++11
-ASFLAGS	:=	$(ARCH)
-LDFLAGS	=	-specs=3dsx.specs $(ARCH) -Wl,-Map,$(notdir $*.map)
+CXXFLAGS	:= $(CFLAGS) -fno-rtti -fno-exceptions -std=gnu++11
 
-LIBS	:= -lctru
-#LIBS	:= -lctrud
+ASFLAGS	:=	-g $(ARCH)
+LDFLAGS	=	-specs=3dsx.specs -nostartfiles -nostdlib \
+			-g $(ARCH) -Wl,-Map,$(notdir $*.map)
+
+LIBS	:=	
 
 #---------------------------------------------------------------------------------
 # list of directories containing libraries, this must be the top level containing
 # include and lib
 #---------------------------------------------------------------------------------
-LIBDIRS	:= $(CTRULIB)
+LIBDIRS	:=  $(TOPDIR)
 
 
 #---------------------------------------------------------------------------------
@@ -66,8 +69,6 @@ export DEPSDIR	:=	$(CURDIR)/$(BUILD)
 CFILES		:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.c)))
 CPPFILES	:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.cpp)))
 SFILES		:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.s)))
-PICAFILES	:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.v.pica)))
-SHLISTFILES	:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.shlist)))
 BINFILES	:=	$(foreach dir,$(DATA),$(notdir $(wildcard $(dir)/*.*)))
 
 #---------------------------------------------------------------------------------
@@ -84,9 +85,10 @@ else
 endif
 #---------------------------------------------------------------------------------
 
-export OFILES	:=	$(addsuffix .o,$(BINFILES)) \
-			$(PICAFILES:.v.pica=.shbin.o) $(SHLISTFILES:.shlist=.shbin.o) \
-			$(CPPFILES:.cpp=.o) $(CFILES:.c=.o) $(SFILES:.s=.o)
+export OFILES_BIN	:=	$(addsuffix .o,$(BINFILES))
+export OFILES_SRC	:=	$(CPPFILES:.cpp=.o) $(CFILES:.c=.o) $(SFILES:.s=.o)
+export OFILES 		:=	$(OFILES_BIN) $(OFILES_SRC)
+export HFILES_BIN	:=	$(addsuffix .h,$(subst .,_,$(BINFILES)))
 
 export INCLUDE	:=	$(foreach dir,$(INCLUDES),-I$(CURDIR)/$(dir)) \
 			$(foreach dir,$(LIBDIRS),-I$(dir)/include) \
@@ -106,66 +108,45 @@ $(BUILD):
 #---------------------------------------------------------------------------------
 clean:
 	@echo clean ...
-	@rm -fr $(BUILD) $(OUTPUT).cxi $(TARGET).elf $(TOPDIR)/$(OUTPUTDIR)
+	@rm -fr $(BUILD) $(TARGET).cxi $(TARGET).elf
 
 
 #---------------------------------------------------------------------------------
 else
+.PHONY:	all
 
 DEPENDS	:=	$(OFILES:.o=.d)
 
 #---------------------------------------------------------------------------------
 # main targets
 #---------------------------------------------------------------------------------
-$(TOPDIR)/$(OUTPUTDIR)/exheader.bin	: $(OUTPUT).cxi
-	@rm -fr $(TOPDIR)/$(OUTPUTDIR)
-	@mkdir -p $(TOPDIR)/$(OUTPUTDIR)
-	@ctrtool --exefsdir=$(TOPDIR)/$(OUTPUTDIR) --exheader=$(TOPDIR)/$(OUTPUTDIR)/exheader.bin $(OUTPUT).cxi
-	
+all	:	$(OUTPUT).cxi
 
-$(OUTPUT).cxi	: $(OUTPUT).elf
-	@makerom -f ncch -rsf ../pdn.rsf -o $@ -elf $<
+$(OUTPUT).cxi	:	$(OUTPUT).elf $(OUTPUT).rsf
+	@makerom -f ncch -rsf $(word 2,$^) -o $@ -elf $<
+	@echo built ... $(notdir $@)
 
 $(OUTPUT).elf	:	$(OFILES)
+
+%.elf: $(OFILES)
+	@echo linking $(notdir $@)
+	$(LD) $(LDFLAGS) $(OFILES) $(LIBPATHS) $(LIBS) -o $@
+	@$(NM) -CSn $@ > $(notdir $*.lst)
+
+$(OFILES_SRC)	: $(HFILES_BIN)
 
 #---------------------------------------------------------------------------------
 # you need a rule like this for each extension you use as binary data
 #---------------------------------------------------------------------------------
-%.bin.o	:	%.bin
+%.bin.o	%_bin.h:	%.bin
 #---------------------------------------------------------------------------------
 	@echo $(notdir $<)
 	@$(bin2o)
-
 #---------------------------------------------------------------------------------
-%.ips.o	:	%.ips
+%.xml.o	%_xml.h:	%.xml
 #---------------------------------------------------------------------------------
 	@echo $(notdir $<)
 	@$(bin2o)
-
-
-#---------------------------------------------------------------------------------
-# rules for assembling GPU shaders
-#---------------------------------------------------------------------------------
-define shader-as
-	$(eval CURBIN := $(patsubst %.shbin.o,%.shbin,$(notdir $@)))
-	picasso -o $(CURBIN) $1
-	bin2s $(CURBIN) | $(AS) -o $@
-	echo "extern const u8" `(echo $(CURBIN) | sed -e 's/^\([0-9]\)/_\1/' | tr . _)`"_end[];" > `(echo $(CURBIN) | tr . _)`.h
-	echo "extern const u8" `(echo $(CURBIN) | sed -e 's/^\([0-9]\)/_\1/' | tr . _)`"[];" >> `(echo $(CURBIN) | tr . _)`.h
-	echo "extern const u32" `(echo $(CURBIN) | sed -e 's/^\([0-9]\)/_\1/' | tr . _)`_size";" >> `(echo $(CURBIN) | tr . _)`.h
-endef
-
-%.shbin.o : %.v.pica %.g.pica
-	@echo $(notdir $^)
-	@$(call shader-as,$^)
-
-%.shbin.o : %.v.pica
-	@echo $(notdir $<)
-	@$(call shader-as,$<)
-
-%.shbin.o : %.shlist
-	@echo $(notdir $<)
-	@$(call shader-as,$(foreach file,$(shell cat $<),$(dir $<)/$(file)))
 
 -include $(DEPENDS)
 
