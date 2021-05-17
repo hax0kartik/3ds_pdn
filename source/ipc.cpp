@@ -11,8 +11,8 @@ static void HandlePDNSCommands(void)
         {
             cmdbuf[0] = 0x100C0;
             cmdbuf[1] = 0;
-            cmdbuf[2] = *(u32*)0x1EC41008; //  PDN_WAKE_ENABLE
-            cmdbuf[3] = *(u32*)0x1EC4100C; //  PDN_WAKE_REASON
+            cmdbuf[2] = *(vu32*)0x1EC41008; //  PDN_WAKE_ENABLE
+            cmdbuf[3] = *(vu32*)0x1EC4100C; //  PDN_WAKE_REASON
             break;
         }
 
@@ -43,6 +43,19 @@ static void HandlePDNSCommands(void)
     }
 }
 
+static Result ControlDSPCNT(bool enable, bool resetengines, bool resetregisters)
+{
+    if ( (resetregisters & ~(u8)enable) != 0 )
+        return 0;
+    *(vu32*)0x1EC41230 = (resetengines ^ 1) | (2 * enable);
+    if((resetengines & resetregisters) != 0)
+    {
+        spinwait(0x30);
+        *(vu32*)0x1EC41230 = (2 * resetregisters) | 1;
+    }
+    return 1;
+}
+
 static void HandlePDNDCommands(void) 
 {
     u32 *cmdbuf = getThreadCommandBuffer();
@@ -50,8 +63,10 @@ static void HandlePDNDCommands(void)
     {
         case 1:
         {
+            Result ret = ControlDSPCNT(cmdbuf[1], cmdbuf[2], cmdbuf[3]);
+            if(ret) cmdbuf[1] = 0;
+            else cmdbuf[1] = 0xE0E02401;
             cmdbuf[0] = 0x10040;
-            cmdbuf[1] = 0;
             break;
         }
 
@@ -71,7 +86,7 @@ static void HandlePDNICommands(void)
     {
         case 1:
         {
-            *(vu8*)0x1EC41220 = ((*(u8*)cmdbuf + 4) | (*(vu8*)0x1EC41220 & 0xFE));
+            *(vu8*)0x1EC41220 = ((u8)cmdbuf[1] | (*(vu8*)0x1EC41220 & ~1));
             cmdbuf[0] = 0x10040;
             cmdbuf[1] = 0;
             break;
@@ -79,7 +94,7 @@ static void HandlePDNICommands(void)
 
         case 2:
         {
-            *(vu8*)0x1EC41220 = ((*(vu8*)0x1EC41220 & 0xFD) | (2 * (*(u8*)cmdbuf + 4)));
+            *(vu8*)0x1EC41220 = ((*(vu8*)0x1EC41220 & ~2) | (2 * (u8)cmdbuf[1]));
             cmdbuf[0] = 0x20040;
             cmdbuf[1] = 0;
             break;
@@ -114,7 +129,7 @@ static void HandlePDNGCommands(void)
     {
         case 1:
         {
-            Result res = ControlGPUCNT(*((u8*)(cmdbuf + 4)), *((u8*)(cmdbuf + 8)), *((u8*)(cmdbuf + 12)));
+            Result res = ControlGPUCNT(cmdbuf[1], cmdbuf[2], cmdbuf[3]);
             if(res) cmdbuf[1] = 0;
             else cmdbuf[1] = 0xE0E02401;
             cmdbuf[0] = 0x10040;
@@ -137,7 +152,7 @@ static void HandlePDNCCommands(void)
     {
         case 1:
         {
-            *(vu8*)0x1EC41224 = ((*((u8*)cmdbuf + 4)) | (*(vu8*)0x1EC41224 & 0xFE));
+            *(vu8*)0x1EC41224 = (u8)cmdbuf[1] | (*(vu8*)0x1EC41224 & 0xFE);
             cmdbuf[0] = 0x10040;
             cmdbuf[1] = 0;
             break;
