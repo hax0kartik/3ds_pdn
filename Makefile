@@ -21,6 +21,7 @@ BUILD		:=	build
 SOURCES		:=	source source/3ds
 DATA		:=	
 INCLUDES	:=	include
+OUTPUTDIR   :=  0004013000002102
 
 #---------------------------------------------------------------------------------
 # options for code generation
@@ -108,7 +109,7 @@ $(BUILD):
 #---------------------------------------------------------------------------------
 clean:
 	@echo clean ...
-	@rm -fr $(BUILD) $(TARGET).cxi $(TARGET).elf
+	@rm -fr $(BUILD) $(TARGET).cxi $(TARGET).elf $(TOPDIR)/$(OUTPUTDIR)
 
 
 #---------------------------------------------------------------------------------
@@ -120,7 +121,11 @@ DEPENDS	:=	$(OFILES:.o=.d)
 #---------------------------------------------------------------------------------
 # main targets
 #---------------------------------------------------------------------------------
-all	:	$(OUTPUT).cxi
+
+$(TOPDIR)/$(OUTPUTDIR)/exheader.bin	: $(OUTPUT).cxi
+	@rm -fr $(TOPDIR)/$(OUTPUTDIR)
+	@mkdir -p $(TOPDIR)/$(OUTPUTDIR)
+	@ctrtool --exefsdir=$(TOPDIR)/$(OUTPUTDIR) --exheader=$(TOPDIR)/$(OUTPUTDIR)/exheader.bin $(OUTPUT).cxi
 
 $(OUTPUT).cxi	:	$(OUTPUT).elf $(OUTPUT).rsf
 	@makerom -f ncch -rsf $(word 2,$^) -o $@ -elf $<
