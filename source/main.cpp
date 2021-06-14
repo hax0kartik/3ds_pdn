@@ -53,7 +53,7 @@ typedef struct{
     mpg123_handle* mh;
 } PHL_Sound;
 
-
+/* This is different from the ctrulib variant as you can use linear as well normal buffers with this. */
 static Result csndPlaySound_(int chn, u32 flags, u32 sampleRate, float vol, float pan, void* data0, void* data1, u32 size)
 {
 	if (!(csndChannels & BIT(chn)))
@@ -222,6 +222,7 @@ void SoundThreadFunc(void *p)
     u8 *buffs[] = {snd.data, snd.data2};
     while(1)
     {
+        /* Set DSP I2S Sound to 0 */
         *(vu16*)0x1EC45000 = ((*(vu16*)0x1EC45000 >> 6) << 6);
         u8 playing;
 		csndIsPlaying(8, &playing);
