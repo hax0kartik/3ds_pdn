@@ -1,5 +1,5 @@
 BasicInfo:
-  Title                   : pdn
+  Title                   : 3ds_pdn
   CompanyCode             : "00"
   ProductCode             : 0430builder
   ContentType             : Application
@@ -42,6 +42,7 @@ AccessControlInfo:
 
   IORegisterMapping:
     - 0x1EC41000 - 0x1EC41FFF
+    - 0x1EC45000 - 0x1EC45FFF
 
   SystemCallAccess:
     AcceptSession: 74
@@ -119,4 +120,4 @@ AccessControlInfo:
 SystemControlInfo:
   SaveDataSize: 0KB # It doesn't use any save data.
   RemasterVersion: 0
-  StackSize: 0x2000
+  StackSize: 0x8000

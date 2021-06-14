@@ -28,12 +28,18 @@
 
 #include <3ds/types.h>
 
-#define SDK_VERSION 0x70200C8
+#define PATH_MAX 255
 
-/// Initializes the service API.
-Result srvSysInit(void);
+typedef struct {
+    Handle handle;
+    u64 pos;
+    u64 size;
+} IFile;
 
-/// Exits the service API.
-Result srvSysExit(void);
-
-void fsSysInit(void);
+Result IFile_Open(IFile *file, FS_ArchiveID archiveId, FS_Path archivePath, FS_Path filePath, u32 flags);
+Result IFile_Close(IFile *file);
+Result IFile_GetSize(IFile *file, u64 *size);
+Result IFile_Read(IFile *file, u64 *total, void *buffer, u32 len);
+Result IFile_Write(IFile *file, u64 *total, const void *buffer, u32 len, u32 flags);
+Result IFile_Seek(IFile *file, u64 pos);
+Result IFile_Truncate(IFile *file);
