@@ -41,12 +41,12 @@ uint32_t VATOPA(const void *addr){
 
 /* Two Data allocations for double buffering */
 typedef struct{
-	u32 sampleRate;
-	u32 dataSize;	
-	u16 bitsPerSample;
-	u16 ndspFormat;
-	u16 numChannels;
-	u8* data;
+    u32 sampleRate;
+    u32 dataSize;	
+    u16 bitsPerSample;
+    u16 ndspFormat;
+    u16 numChannels;
+    u8* data;
     u8* data2;
     u8 number;
     bool decode;
@@ -56,140 +56,140 @@ typedef struct{
 /* This is different from the ctrulib variant as you can use linear as well normal buffers with this. */
 static Result csndPlaySound_(int chn, u32 flags, u32 sampleRate, float vol, float pan, void* data0, void* data1, u32 size)
 {
-	if (!(csndChannels & BIT(chn)))
-		return 1;
+    if (!(csndChannels & BIT(chn)))
+        return 1;
 
-	u32 paddr0 = 0, paddr1 = 0;
+    u32 paddr0 = 0, paddr1 = 0;
 
-	int encoding = (flags >> 12) & 3;
-	int loopMode = (flags >> 10) & 3;
+    int encoding = (flags >> 12) & 3;
+    int loopMode = (flags >> 10) & 3;
 
-	if (!loopMode) flags |= SOUND_ONE_SHOT;
+    if (!loopMode) flags |= SOUND_ONE_SHOT;
 
-	if (encoding != CSND_ENCODING_PSG)
-	{
-		if (data0) paddr0 = VATOPA(data0);
-		if (data1) paddr1 = VATOPA(data1);
+    if (encoding != CSND_ENCODING_PSG)
+    {
+        if (data0) paddr0 = VATOPA(data0);
+        if (data1) paddr1 = VATOPA(data1);
 
-		if (data0 && encoding == CSND_ENCODING_ADPCM)
-		{
-			int adpcmSample = ((s16*)data0)[-2];
-			int adpcmIndex = ((u8*)data0)[-2];
-			CSND_SetAdpcmState(chn, 0, adpcmSample, adpcmIndex);
-		}
-	}
+        if (data0 && encoding == CSND_ENCODING_ADPCM)
+        {
+            int adpcmSample = ((s16*)data0)[-2];
+            int adpcmIndex = ((u8*)data0)[-2];
+            CSND_SetAdpcmState(chn, 0, adpcmSample, adpcmIndex);
+        }
+    }
 
-	u32 timer = CSND_TIMER(sampleRate);
-	if (timer < 0x0042) timer = 0x0042;
-	else if (timer > 0xFFFF) timer = 0xFFFF;
-	flags &= ~0xFFFF001F;
-	flags |= SOUND_ENABLE | SOUND_CHANNEL(chn) | (timer << 16);
+    u32 timer = CSND_TIMER(sampleRate);
+    if (timer < 0x0042) timer = 0x0042;
+    else if (timer > 0xFFFF) timer = 0xFFFF;
+    flags &= ~0xFFFF001F;
+    flags |= SOUND_ENABLE | SOUND_CHANNEL(chn) | (timer << 16);
 
-	u32 volumes = CSND_VOL(vol, pan);
-	CSND_SetChnRegs(flags, paddr0, paddr1, size, volumes, volumes);
+    u32 volumes = CSND_VOL(vol, pan);
+    CSND_SetChnRegs(flags, paddr0, paddr1, size, volumes, volumes);
 
-	if (loopMode == CSND_LOOPMODE_NORMAL && paddr1 > paddr0)
-	{
-		// Now that the first block is playing, configure the size of the subsequent blocks
-		size -= paddr1 - paddr0;
-		CSND_SetBlock(chn, 1, paddr1, size);
-	}
+    if (loopMode == CSND_LOOPMODE_NORMAL && paddr1 > paddr0)
+    {
+        // Now that the first block is playing, configure the size of the subsequent blocks
+        size -= paddr1 - paddr0;
+        CSND_SetBlock(chn, 1, paddr1, size);
+    }
 
-	return csndExecCmds(true);
+    return csndExecCmds(true);
 }
 
 /*
 PHL_Sound loadWav(char* fname) {
-	char *fullPath = fname;
-	
-	IFile f;
-	if (IFile_Open(&f,ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, NULL), fsMakePath(PATH_ASCII, fname), FS_OPEN_READ) == 0) {
+    char *fullPath = fname;
+    
+    IFile f;
+    if (IFile_Open(&f,ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, NULL), fsMakePath(PATH_ASCII, fname), FS_OPEN_READ) == 0) {
 
-		// Check for valid fileName
-		u32 sig;
-		IFile_Read(&f, NULL, &sig, 4);
+        // Check for valid fileName
+        u32 sig;
+        IFile_Read(&f, NULL, &sig, 4);
 
-		if (sig == 0x46464952) { // RIFF
-			u32 chunkSize;
-			u32 format;
-			
-			IFile_Read(&f, NULL, &chunkSize, 4);
-			IFile_Read(&f, NULL, &format, 4);
-			
-			if (format == 0x45564157) { // WAVE
-				u32 subchunk1ID;
-				IFile_Read(&f, NULL, &subchunk1ID, 4);
-				if (subchunk1ID == 0x20746D66) { // fmt
-					u32 subchunk1Size;
-					u16 audioFormat;
-					u16 numChannels;
-					u32 sampleRate;
-					u32 byteRate;
-					u16 blockAlign;
-					u16 bitsPerSample;
-					
-					IFile_Read(&f, NULL, &subchunk1Size, 4);
-					IFile_Read(&f, NULL, &audioFormat, 2);
-					IFile_Read(&f, NULL, &numChannels, 2);
-					IFile_Read(&f, NULL, &sampleRate, 4);
-					IFile_Read(&f, NULL, &byteRate, 4);
-					IFile_Read(&f, NULL, &blockAlign, 2);
-					IFile_Read(&f, NULL, &bitsPerSample, 2);
-					
-					// Search for 'data'
-					for (int i = 0; i < 100; i++) {
-						u8 c;
-						IFile_Read(&f, NULL, &c, 1);
-						if (c == 0x64) { // 'd'
-							IFile_Read(&f, NULL, &c, 1);
-							if (c == 0x61) { // 'a'
-								IFile_Read(&f, NULL, &c, 1);
-								if (c == 0x74) { // 't'
-									IFile_Read(&f, NULL, &c, 1);
-									if (c == 0x61) { // 'a'
-										i = 100;
-									}
-								}
-							}
-						}
-					}
-					
-					u32 subchunk2Size;
-					IFile_Read(&f, NULL, &subchunk2Size, 4);
-					
-					snd.numChannels = numChannels;
-					
-					if(bitsPerSample == 8) {
-						snd.ndspFormat = (numChannels == 1) ?
-							NDSP_FORMAT_MONO_PCM8 :
-							NDSP_FORMAT_STEREO_PCM8;
-					} else {
-						snd.ndspFormat = (numChannels == 1) ?
-							NDSP_FORMAT_MONO_PCM16 :
-							NDSP_FORMAT_STEREO_PCM16;
-					}
-					
-					snd.sampleRate = sampleRate;
-					snd.dataSize = subchunk2Size;
-					snd.bitsPerSample = bitsPerSample;
-					
-					snd.data = (u8*)(malloc(subchunk2Size));
-					IFile_Read(&f, NULL, snd.data, subchunk2Size);
-				}
-			}
-		}
-		
-		IFile_Close(&f);
-	}
-	return snd;
+        if (sig == 0x46464952) { // RIFF
+            u32 chunkSize;
+            u32 format;
+            
+            IFile_Read(&f, NULL, &chunkSize, 4);
+            IFile_Read(&f, NULL, &format, 4);
+            
+            if (format == 0x45564157) { // WAVE
+                u32 subchunk1ID;
+                IFile_Read(&f, NULL, &subchunk1ID, 4);
+                if (subchunk1ID == 0x20746D66) { // fmt
+                    u32 subchunk1Size;
+                    u16 audioFormat;
+                    u16 numChannels;
+                    u32 sampleRate;
+                    u32 byteRate;
+                    u16 blockAlign;
+                    u16 bitsPerSample;
+                    
+                    IFile_Read(&f, NULL, &subchunk1Size, 4);
+                    IFile_Read(&f, NULL, &audioFormat, 2);
+                    IFile_Read(&f, NULL, &numChannels, 2);
+                    IFile_Read(&f, NULL, &sampleRate, 4);
+                    IFile_Read(&f, NULL, &byteRate, 4);
+                    IFile_Read(&f, NULL, &blockAlign, 2);
+                    IFile_Read(&f, NULL, &bitsPerSample, 2);
+                    
+                    // Search for 'data'
+                    for (int i = 0; i < 100; i++) {
+                        u8 c;
+                        IFile_Read(&f, NULL, &c, 1);
+                        if (c == 0x64) { // 'd'
+                            IFile_Read(&f, NULL, &c, 1);
+                            if (c == 0x61) { // 'a'
+                                IFile_Read(&f, NULL, &c, 1);
+                                if (c == 0x74) { // 't'
+                                    IFile_Read(&f, NULL, &c, 1);
+                                    if (c == 0x61) { // 'a'
+                                        i = 100;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    u32 subchunk2Size;
+                    IFile_Read(&f, NULL, &subchunk2Size, 4);
+                    
+                    snd.numChannels = numChannels;
+                    
+                    if(bitsPerSample == 8) {
+                        snd.ndspFormat = (numChannels == 1) ?
+                            NDSP_FORMAT_MONO_PCM8 :
+                            NDSP_FORMAT_STEREO_PCM8;
+                    } else {
+                        snd.ndspFormat = (numChannels == 1) ?
+                            NDSP_FORMAT_MONO_PCM16 :
+                            NDSP_FORMAT_STEREO_PCM16;
+                    }
+                    
+                    snd.sampleRate = sampleRate;
+                    snd.dataSize = subchunk2Size;
+                    snd.bitsPerSample = bitsPerSample;
+                    
+                    snd.data = (u8*)(malloc(subchunk2Size));
+                    IFile_Read(&f, NULL, snd.data, subchunk2Size);
+                }
+            }
+        }
+        
+        IFile_Close(&f);
+    }
+    return snd;
 }
 */
 
 static ssize_t replace_read(void *file, void * buffer, size_t length)
 {
-	u64 total = 0;
-	IFile_Read((IFile*)file, &total, buffer, length);
-	return length;
+    u64 total = 0;
+    IFile_Read((IFile*)file, &total, buffer, length);
+    return length;
 }
 
 off_t replace_lseek(void * file, off_t to, int whence)
@@ -225,22 +225,22 @@ void SoundThreadFunc(void *p)
         /* Set DSP I2S Sound to 0 */
         *(vu16*)0x1EC45000 = ((*(vu16*)0x1EC45000 >> 6) << 6);
         u8 playing;
-		csndIsPlaying(8, &playing);
-		if(decode)
-		{
-			mpg123_read(snd.mh, (u8*)buffs[!snd.number], snd.dataSize, &done);
-			done = done / sizeof(int16_t);
-			decode = false;
-		}
+        csndIsPlaying(8, &playing);
+        if(decode)
+        {
+            mpg123_read(snd.mh, (u8*)buffs[!snd.number], snd.dataSize, &done);
+            done = done / sizeof(int16_t);
+            decode = false;
+        }
 
-		if(!playing)
-		{
-			u8 *playbuf = buffs[!snd.number];
-			svcFlushDataCacheRange(playbuf, snd.dataSize);
-			csndPlaySound_(8, SOUND_FORMAT_16BIT, snd.sampleRate, 1.0f, 0, playbuf, NULL, snd.dataSize);
+        if(!playing)
+        {
+            u8 *playbuf = buffs[!snd.number];
+            svcFlushDataCacheRange(playbuf, snd.dataSize);
+            csndPlaySound_(8, SOUND_FORMAT_16BIT, snd.sampleRate, 1.0f, 0, playbuf, NULL, snd.dataSize);
             decode = true;
             snd.number = !snd.number;
-		}
+        }
         svcSleepThread(10);
     }
 }
@@ -336,27 +336,27 @@ int main()
     s32 targetindex = -1;
     int terminationflag = 0;
     int err = 0;
-	int encoding = 0;
-	int channels = 0;
-	long int rate = 0;
-	IFile f;
+    int encoding = 0;
+    int channels = 0;
+    long int rate = 0;
+    IFile f;
     if((err = mpg123_init()) != MPG123_OK)
-		;
+        ;
 
     if((snd.mh = mpg123_new(NULL, &err)) == NULL)
-	{
-	    ;//printf("Error: %s\n", mpg123_plain_strerror(err));
-	}
+    {
+        ;//printf("Error: %s\n", mpg123_plain_strerror(err));
+    }
     Result ret = IFile_Open(&f, ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, NULL), fsMakePath(PATH_ASCII, "/sound.mp3"), FS_OPEN_READ);
-	//printf("IFILE_Open: %08X\n", ret);
+    //printf("IFILE_Open: %08X\n", ret);
 
     mpg123_replace_reader_handle(snd.mh, replace_read, replace_lseek, NULL);
     if(mpg123_open_handle(snd.mh, &f) != MPG123_OK || mpg123_getformat(snd.mh, &rate, &channels, &encoding) != MPG123_OK)
     {
-		;//printf("Trouble with mpg123: %s\n", mpg123_strerror(mh));
-	}
-	mpg123_format_none(snd.mh);
-	mpg123_format(snd.mh, rate * 2, channels, encoding);
+        ;//printf("Trouble with mpg123: %s\n", mpg123_strerror(mh));
+    }
+    mpg123_format_none(snd.mh);
+    mpg123_format(snd.mh, rate * 2, channels, encoding);
     size_t buffSize = mpg123_outblock(snd.mh) * 32;
     snd.sampleRate = rate*2;
     snd.numChannels = channels;
